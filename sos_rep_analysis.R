@@ -7,7 +7,7 @@
 # Basic setup ------------------------------------------------------------------
 
 packages <- c("gtools", "readr", "tibble", "dplyr", "data.table", "tidyr",
-              "readxl", "ggplot2", "lme4")
+              "readxl", "ggplot2", "lme4", "lmerTest")
 
 lapply(packages, library, character.only = TRUE)
 
@@ -107,6 +107,21 @@ plot_3 <- ggplot(
 
 # Information disclosure models ------------------------------------------------
 
+# ICC Model - Unconditional mean model
+
+icc_model <- lmer(detail
+            ~ 1 
+            + (1 |MC/id)
+            + (1 |interviewer) #Have not simulated variances for interviewer yet
+            + (1 |interview) 
+            + (1 |stage),
+            data=my_df,
+            REML=TRUE)
+
+summary(icc_model)
+
+performance::icc(icc_model, by_group = TRUE)
+
 # Simple effects, splines
 
 info_simple <- lmer(detail 
@@ -115,7 +130,8 @@ info_simple <- lmer(detail
             + start_slope 
             + end_slope 
             + condition 
-            + (1 + start_slope + end_slope + interview | MC/id) 
+            + (1 + start_slope + end_slope + interview | MC/id)
+            + (1 |interviewer)
             + (1 | stage),
             data=my_df,
             REML=FALSE)
@@ -136,7 +152,8 @@ info_2_way <- lmer(detail
             + start_slope*condition
             + end_slope*condition
             + (1 + start_slope + end_slope + interview | MC/id)
-            + (1|stage),
+            + (1 |interviewer)
+            + (1 |stage),
             data=my_df,
             REML=FALSE)
 
@@ -159,7 +176,8 @@ info_3_way <- lmer(detail
             + end_slope*condition
             + interview*condition*start_slope 
             + interview*condition*end_slope   
-            + (1 + start_slope + end_slope + interview | MC/id) 
+            + (1 + start_slope + end_slope + interview | MC/id)
+            + (1 |interviewer)
             + (1 | stage),
             data=my_df,
             REML=FALSE)
@@ -169,6 +187,21 @@ summary(info_3_way)
 anova(info_2_way, info_3_way, refit=FALSE)
 
 # Self-assessment of performance -----------------------------------------------
+
+# ICC Model - Unconditional mean model
+
+SA_icc_model <- lmer(self_assessment 
+                  ~ 1 
+                  + (1 |MC/id)
+                  + (1 |interviewer) #Have not simulated variances for interviewer yet
+                  + (1 |stage)
+                  + (1 |interview),
+                  data=my_df,
+                  REML=TRUE)
+
+summary(SA_icc_model)
+
+performance::icc(SA_icc_model, by_group = TRUE)
 
 ## Main effects
 
@@ -201,15 +234,35 @@ anova(self_simple, self_interaction, refit=FALSE)
 
 ## Interview -------------------------------------------------------------------
 
+# ICC Model - Unconditional mean model
+
+QIW_icc_model <- lmer(qual_interview 
+                     ~ 1 
+                     + (1 |MC/id)
+                     + (1 |interviewer) #Have not simulated variances for interviewer yet
+                     + (1 |stage)
+                     + (1 |interview),
+                     data=my_df,
+                     REML=TRUE)
+
+summary(QIW_icc_model)
+
+performance::icc(QIW_icc_model, by_group = TRUE)
+
+## Main effects
+
 qual_interview_simple <- lmer(qual_interview 
                     ~ 1 
-                    + interview 
+                    + interview
+                    + interview_sq
                     + condition 
-                    + (1 + interview | MC/id),
+                    + (1 + interview  + interview_sq| MC/id),
                     data=my_df,
                     REML=FALSE)
 
 summary(qual_interview_simple)
+
+## Interaction effect
 
 qual_interview_interaction <- lmer(qual_interview 
                          ~ 1 
@@ -226,6 +279,23 @@ anova(qual_interview_simple, qual_interview_interaction, refit=FALSE)
 
 ## Interviewer -----------------------------------------------------------------
 
+# ICC Model - Unconditional mean model
+
+QIR_icc_model <- lmer(qual_interviewer 
+                      ~ 1 
+                      + (1 |MC/id)
+                      + (1 |interviewer) #Have not simulated variances for interviewer yet
+                      + (1 |stage)
+                      + (1 |interview),
+                      data=my_df,
+                      REML=TRUE)
+
+summary(QIR_icc_model)
+
+performance::icc(QIR_icc_model, by_group = TRUE)
+
+## Main effects
+
 qual_interviewer_simple <- lmer(qual_interviewer 
                               ~ 1 
                               + interview 
@@ -235,6 +305,8 @@ qual_interviewer_simple <- lmer(qual_interviewer
                               REML=FALSE)
 
 summary(qual_interviewer_simple)
+
+## Interaction effects
 
 qual_interviewer_interaction <- lmer(qual_interviewer 
                                    ~ 1 
@@ -257,8 +329,7 @@ anova(qual_interviewer_simple, qual_interviewer_interaction, refit=FALSE)
 ### Main effect model
 
 expl_model_1 <- lmer(detail
-                     + stage
-                     + interview
+                     ~ interview
                      + condition
                      + self_assessment
                      + (1 + interview | MC/id) 
@@ -272,14 +343,13 @@ summary(expl_model_1)
 ### Interaction effect model
 
 expl_model_2 <- lmer(detail
-                     ~ stage
-                     + interview
+                     ~ interview
                      + condition
                      + self_assessment
                      + self_assessment*condition
                      + self_assessment*interview
-                     + (1|crime_order:ID) 
-                     + (1|stage),
+                     + (1 + interview | MC/id) 
+                     + (1 | stage),
                      data = my_df,
                      REML = FALSE
 )
@@ -291,14 +361,13 @@ comp_expl_model_anova <- anova(expl_model_1, expl_model_2)
 ### 3-way Interaction effect model
 
 expl_model_3 <- lmer(detail
-                     ~ stage
-                     + interview
+                     ~ interview
                      + condition
                      + self_assessment
                      + self_assessment*condition
                      + self_assessment*interview
                      + self_assessment*interview*condition
-                     + (1|crime_order:ID) 
+                     + (1 + interview | MC/id) 
                      + (1|stage),
                      data = my_df,
                      REML = FALSE

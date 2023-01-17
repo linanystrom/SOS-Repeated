@@ -124,6 +124,7 @@ complete_df <- complete_df %>%
       ))))
 
 
+
 # Set up coefficients ----------------------------------------------------------
 
 coeff <- c( "(Intercept)"                         =  1.34,
@@ -170,6 +171,8 @@ detail_data <- getData(sim_detail_lmer)
 sims <- 1000
 
 p_vec <- rep(NA, sims)
+
+p_vec_main <- rep(NA, sims)
 
 for (i in 1:sims) {
   
@@ -231,6 +234,17 @@ for (i in 1:sims) {
   
   p_vec[i] <- lrt$`Pr(>Chisq)`[[2]]
   
+  p_vec_main[i] <- summary(main_eff)$coefficients[5,5]
+  
 }
 
 sum(p_vec < .05)/sims # Power
+
+sum(p_vec_main < .05)/sims # Power condition
+
+write.csv(
+  detail_data,
+  "./sim_repeated_2.csv",
+  row.names = FALSE
+)
+
