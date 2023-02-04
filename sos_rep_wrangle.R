@@ -240,6 +240,18 @@ merged_long_data$stage_sq <- merged_long_data$stage^2
 ### Export data ----------------------------------------------------------------
 
 write.csv(
+  qualtrics_clean,
+  "./qualtrics_clean.csv",
+  row.names = FALSE
+)
+
+write.csv(
+  excell_clean,
+  "./excell_clean.csv",
+  row.names = FALSE
+)
+
+write.csv(
   merged_long_data,
   "./test_data.csv",
   row.names = FALSE

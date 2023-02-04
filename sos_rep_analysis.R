@@ -122,6 +122,22 @@ summary(icc_model)
 
 performance::icc(icc_model, by_group = TRUE)
 
+# We begin by testing a model without random slopes
+
+info_no_rslope <- lmer(detail 
+                    ~ 1 
+                    + interview 
+                    + start_slope 
+                    + end_slope 
+                    + condition 
+                    + (1 | MC/id)
+                    + (1 |interviewer)
+                    + (1 | stage),
+                    data=my_df,
+                    REML=FALSE)
+
+summary(info_no_rslope)
+
 # Simple effects, splines
 
 info_simple <- lmer(detail 
@@ -137,6 +153,10 @@ info_simple <- lmer(detail
             REML=FALSE)
 
 summary(info_simple)
+
+# Depending on the outcome of test below we will either retain or omit random slopes in the subsequent models. 
+
+anova(info_no_rslope,info_simple, refit=FALSE)
 
 #Interaction effects (2-way)
 
