@@ -6,15 +6,126 @@
 
 # Basic setup ------------------------------------------------------------------
 
-packages <- c("readr", "dplyr")
+packages <- c("readr", "dplyr", "readxl", "tidyr", "reshape2")
 
 lapply(packages, library, character.only = TRUE)
 
-qualtrics_raw <- read_csv("./qualtrics.csv") %>% 
+# Load data --------------------------------------------------------------------
+
+qualtrics_eng <- read_csv("data/Repeated_SoS_ENG.csv") %>% 
   filter(!row_number() %in% c(1, 2)) %>%
   type_convert()
 
-excell_raw <- read_xlsx("./coding_random.xlsx")
+qualtrics_swe <- read_csv("data/Repeated_SoS_SWE.csv") %>% 
+  filter(!row_number() %in% c(1, 2)) %>%
+  type_convert()
+
+qualtrics_raw <- rbind(qualtrics_eng, qualtrics_swe)
+
+excell_raw <- read_xlsx("data/coding_solved.xlsx") 
+
+condition_info <- excell_raw %>% select(c("id","style", "interviewer"))
+
+wide_data <- qualtrics_raw %>% 
+  select(c("id", "interview",
+           "interview_statements_1",
+           "interview_statements_2",
+           "interview_statements_3",
+           "interview_statements_4"))
+
+wide_data_clean <- wide_data[rowSums(is.na(wide_data)) <= 3, ] 
+
+wide_data_clean <- wide_data_clean %>% 
+  pivot_wider(
+    names_from = interview,
+    values_from = c("interview_statements_1",
+                    "interview_statements_2",
+                    "interview_statements_3", 
+                    "interview_statements_4")
+  )
+
+wide_data_clean <- wide_data_clean %>% 
+  rename(confident_1 = interview_statements_1_1,
+         confident_2 = interview_statements_1_2,
+         confident_3 = interview_statements_1_3,
+         difficult_1 = interview_statements_2_1,
+         difficult_2 = interview_statements_2_2,
+         difficult_3 = interview_statements_2_3,
+         suspicious_1 = interview_statements_3_1,
+         suspicious_2 = interview_statements_3_2,
+         suspicious_3 = interview_statements_3_3,
+         convincing_1 = interview_statements_4_1,
+         convincing_2 = interview_statements_4_2,
+         convincing_3 = interview_statements_4_3)
+
+wide_data_clean <- merge(wide_data_clean, excell_raw, by = "id")
+
+wide_data_clean <- wide_data_clean %>%
+  select(id,
+         confident_1,
+         confident_2, 
+         confident_3, 
+         difficult_1, 
+         difficult_2, 
+         difficult_3, 
+         suspicious_1, 
+         suspicious_2,
+         suspicious_3,
+         convincing_1,
+         convincing_2,
+         convincing_3,
+         everything()) %>%
+  type_convert()
+
+qualtrics_raw <- merge(x=qualtrics_raw,y=condition_info, by= "id")
+
+# Long form detail data --------------------------------------------------------
+
+excell_long <- excell_raw  %>% 
+  pivot_longer(
+    cols = c("int1_st1",
+             "int1_st2",
+             "int1_st3",
+             "int1_st4",
+             "int1_st5",
+             "int2_st1",
+             "int2_st2",
+             "int2_st3",
+             "int2_st4",
+             "int2_st5",
+             "int3_st1",
+             "int3_st2",
+             "int3_st3",
+             "int3_st4",
+             "int3_st5"),
+    names_to = "stage",
+    values_to = "detail")
+
+# Assign values ----------------------------------------------------------------
+
+excell_long <- excell_long %>% 
+  mutate(
+    interview = case_when(
+      startsWith(stage,"int1") ~ 0,
+      startsWith(stage,"int2") ~ 1,
+      startsWith(stage,"int3") ~ 2,
+      
+    ),
+    activity = case_when(
+      endsWith(stage, "st1") ~ 0,
+      endsWith(stage, "st2") ~ 1,
+      endsWith(stage, "st3") ~ 2,
+      endsWith(stage, "st4") ~ 3,
+      endsWith(stage, "st5") ~ 4,
+      
+    ),
+    critical = case_when(
+      endsWith(stage, "st1") ~ 0,
+      endsWith(stage, "st2") ~ 0,
+      endsWith(stage, "st3") ~ 0,
+      endsWith(stage, "st4") ~ 1,
+      endsWith(stage, "st5") ~ 1
+    ))
 
 ## Create composite measures ---------------------------------------------------
 
@@ -97,7 +208,7 @@ qualtrics_clean <- qualtrics_raw %>%
         interview_statements_4)/4,
   )
 
-### Organize columns
+### Organize columns -----------------------------------------------------------
 
 qualtrics_clean <- qualtrics_clean %>%
   select(id,
@@ -111,7 +222,7 @@ qualtrics_clean <- qualtrics_clean %>%
          gender, 
          everything())
 
-##
+### Assign interview -----------------------------------------------------------
 
 qualtrics_clean <- qualtrics_clean %>%
   mutate(
@@ -122,138 +233,81 @@ qualtrics_clean <- qualtrics_clean %>%
     )
   )
 
+## Define slopes ---------------------------------------------------------------
 
-### Long format excell data
-
-excell_long <- excell_raw  %>% 
-pivot_longer(
-  cols = c("int1_st1",
-           "int1_st2",
-           "int1_st3",
-           "int1_st4",
-           "int1_st5",
-           "int2_st1",
-           "int2_st2",
-           "int2_st3",
-           "int2_st4",
-           "int2_st5",
-           "int3_st1",
-           "int3_st2",
-           "int3_st3",
-           "int3_st4",
-           "int3_st5"),
-  names_to = "stage",
-  values_to = "detail")
-
-### Add interview variable, excel data
-
-excell_clean <- excell_long %>% 
-  mutate(
-    interview = case_when(
-      stage == "int1_st1" ~ 0,
-      stage == "int1_st2" ~ 0,
-      stage == "int1_st3" ~ 0,
-      stage == "int1_st4" ~ 0,
-      stage == "int1_st5" ~ 0,
-      stage == "int2_st1" ~ 1,
-      stage == "int2_st2" ~ 1,
-      stage == "int2_st3" ~ 1,
-      stage == "int2_st4" ~ 1,
-      stage == "int2_st5" ~ 1,
-      stage == "int3_st1" ~ 2,
-      stage == "int3_st2" ~ 2,
-      stage == "int3_st3" ~ 2,
-      stage == "int3_st4" ~ 2,
-      stage == "int3_st5" ~ 2
-    ),
-    
-    stage = case_when(
-      stage == "int1_st1" ~ 0,
-      stage == "int1_st2" ~ 1,
-      stage == "int1_st3" ~ 2,
-      stage == "int1_st4" ~ 3,
-      stage == "int1_st5" ~ 4,
-      stage == "int2_st1" ~ 0,
-      stage == "int2_st2" ~ 1,
-      stage == "int2_st3" ~ 2,
-      stage == "int2_st4" ~ 3,
-      stage == "int2_st5" ~ 4,
-      stage == "int3_st1" ~ 0,
-      stage == "int3_st2" ~ 1,
-      stage == "int3_st3" ~ 2,
-      stage == "int3_st4" ~ 2,
-      stage == "int3_st5" ~ 3
-      )
-    )
-    
-excell_clean <- excell_clean %>% 
+excell_long <- excell_long %>% 
   mutate(start_slope = ifelse(interview == 0, case_when(
-      stage == 0 ~ 0,
-      stage == 1 ~ 0,
-      stage == 2 ~ 0,
-      stage == 3 ~ 0,
-      stage == 4 ~ 0), 
-      ifelse(interview == 1, case_when(
-        stage == 0 ~ 0,
-        stage == 1 ~ 1,
-        stage == 2 ~ 1,
-        stage == 3 ~ 1,
-        stage == 4 ~ 1), 
-        ifelse(interview == 2, case_when(
-          stage == 0 ~ 0,
-          stage == 1 ~ 1,
-          stage == 2 ~ 2,
-          stage == 3 ~ 2,
-          stage == 4 ~ 2), NA)
-        )))
-        
-      
-excell_clean <- excell_clean %>% 
+    activity == 0 ~ 0,
+    activity == 1 ~ 0,
+    activity == 2 ~ 0,
+    activity == 3 ~ 0,
+    activity == 4 ~ 0), 
+    ifelse(interview == 1, case_when(
+      activity == 0 ~ 0,
+      activity == 1 ~ 1,
+      activity == 2 ~ 1,
+      activity == 3 ~ 1,
+      activity == 4 ~ 1), 
+      ifelse(interview == 2, case_when(
+        activity == 0 ~ 0,
+        activity == 1 ~ 1,
+        activity == 2 ~ 2,
+        activity == 3 ~ 2,
+        activity == 4 ~ 2), NA)
+    )))
+
+
+excell_long <- excell_long %>% 
   mutate(
     end_slope = ifelse(interview == 0, case_when(
-          stage == 0 ~ 0,
-          stage == 1 ~ 1,
-          stage == 2 ~ 2,
-          stage == 3 ~ 3,
-          stage == 4 ~ 4), 
-          ifelse(interview == 1, case_when(
-            stage == 0 ~ 0,
-            stage == 1 ~ 0,
-            stage == 2 ~ 1,
-            stage == 3 ~ 2,
-            stage == 4 ~ 3), 
-            ifelse(interview == 2, case_when(
-              stage == 0 ~ 0,
-              stage == 1 ~ 0,
-              stage == 2 ~ 0,
-              stage == 3 ~ 1,
-              stage == 4 ~ 2), NA)
-            )))
+      activity == 0 ~ 0,
+      activity == 1 ~ 1,
+      activity == 2 ~ 2,
+      activity == 3 ~ 3,
+      activity == 4 ~ 4), 
+      ifelse(interview == 1, case_when(
+        activity == 0 ~ 0,
+        activity == 1 ~ 0,
+        activity == 2 ~ 1,
+        activity == 3 ~ 2,
+        activity == 4 ~ 3), 
+        ifelse(interview == 2, case_when(
+          activity == 0 ~ 0,
+          activity == 1 ~ 0,
+          activity == 2 ~ 0,
+          activity == 3 ~ 1,
+          activity == 4 ~ 2), NA)
+      )))
 
 ### Merge data -----------------------------------------------------------------
 
-merged_long_data <- merge(x=qualtrics_clean,y=excell_clean, 
-                   by=c("id","interview"))
+merged_long_data <- merge(x=qualtrics_clean,y=excell_long, 
+                   by=c("id", "interview", "style", "interviewer"))
 
-merged_long_data$stage_sq <- merged_long_data$stage^2
+merged_long_data$stage_sq <- merged_long_data$activity^2
 
 ### Export data ----------------------------------------------------------------
 
 write.csv(
   qualtrics_clean,
-  "./qualtrics_clean.csv",
+  "data/qualtrics_clean.csv",
   row.names = FALSE
 )
 
 write.csv(
-  excell_clean,
-  "./excell_clean.csv",
+  excell_long,
+  "data/excell_clean.csv",
   row.names = FALSE
 )
 
 write.csv(
   merged_long_data,
-  "./test_data.csv",
+  "data/sos_rep_long.csv",
   row.names = FALSE
+)
+
+write_csv(
+  wide_data_clean,
+  "data/wide_data.csv"
 )
 

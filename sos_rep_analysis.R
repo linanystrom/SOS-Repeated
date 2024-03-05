@@ -11,14 +11,23 @@ packages <- c("gtools", "readr", "tibble", "dplyr", "data.table", "tidyr",
 
 lapply(packages, library, character.only = TRUE)
 
-my_df <- read_csv("./sim_repeated.csv") #Load data here
+my_df <- read_csv("data/sos_rep_long.csv") #Load data here
 
 # Plots ------------------------------------------------------------------------
 
+plot_df <- my_df
+
+
+## Factor training & details (critical, noncritical)
+
+plot_df$style <- factor(plot_df$style)
+
+plot_df$critical <- factor(plot_df$critical)
+
 ## Descriptives
 
-info_desc <- my_df %>% 
-  group_by(condition, stage, interview) %>% 
+info_desc <- plot_df %>% 
+  group_by(style, interview, activity) %>% 
   summarise(
     Mean = mean(detail, na.rm = TRUE),
     SD = sd(detail, na.rm = TRUE),
@@ -28,12 +37,65 @@ info_desc <- my_df %>%
     Lower = Mean - (1.96*SE)
   )
 
-# Grid with plots for information disclosure over stages of interview (one plot per interview/condition combination).
+## Descriptives - critical
+
+crit_desc <- plot_df %>% 
+  group_by(style, interview, critical) %>% 
+  summarise(
+    Mean = mean(detail, na.rm = TRUE),
+    SD = sd(detail, na.rm = TRUE),
+    Median = median(detail, na.rm = TRUE),
+    SE = SD/sqrt(n()),
+    Upper = Mean + (1.96*SE),
+    Lower = Mean - (1.96*SE)
+  )
+
+
+mean_plot <- ggplot(crit_desc, aes(
+  x = interview,
+  y = Mean,
+  colour = style,
+  group = style)
+  ) + 
+  geom_errorbar(aes(
+    ymin = Lower,
+    ymax = Upper),
+    width = .1,
+    position = position_dodge(width = .2)
+  ) +
+  geom_point(
+    size = 2,
+    position = position_dodge(width = .2)
+  ) +
+  geom_line(
+    
+  ) +
+  labs(
+    y = "Disclosed details",
+    x = "Detail type",
+    color = "Condition"
+  ) +
+  facet_wrap(
+    ~ critical
+  )
+
+# Grid with plots for information disclosure over stages of interview (one plot per interview/style combination).
+
+plot_1_desc <- plot_df %>% 
+  group_by(style, interview, activity) %>% 
+  summarise(
+    Mean = mean(detail, na.rm = TRUE),
+    SD = sd(detail, na.rm = TRUE),
+    Median = median(detail, na.rm = TRUE),
+    SE = SD/sqrt(n()),
+    Upper = Mean + (1.96*SE),
+    Lower = Mean - (1.96*SE)
+  )
 
 plot_1 <- ggplot(
-  my_df,
+  plot_df,
   aes(
-    x=stage,
+    x=activity,
     y=detail,
     group=id)
 ) + 
@@ -41,68 +103,58 @@ plot_1 <- ggplot(
     position = position_jitter()
   ) +
   geom_line(
-    data = info_desc,
+    data = plot_1_desc,
     aes(
-      x = stage,
+      x = activity,
       y = Mean,
       group = interview
     ),
     color = "deeppink2",
     linewidth = 1.5
   ) +
-  facet_wrap(~ condition + interview, labeller = label_both)
+  facet_wrap(~ style + interview, labeller = label_both)
 
 # One plot per interview, displaying mean information disclosure for SoS and Direct.
 
+interview.labs <- c("Interview 1", "Interview 2", "Interview 3")
+names(interview.labs) <- c("0", "1", "2")
+
+plot_df$style <- factor(plot_df$style,
+                               levels = c("direct", "sos"),
+                               labels = c("Direct","SoS"))
+
 plot_2 <- ggplot(
-  my_df,
+  plot_df,
   aes(
-    x=stage,
+    x=activity,
     y=detail,
-    group=id,
-    color=condition)
+    color=style,
+    group = id)
 ) + 
   geom_line(
     position = position_jitter(),
-    color = "black"
+    color = "grey"
   ) +
   geom_line(
-    data = info_desc,
+    data = plot_1_desc,
     aes(
-      x = stage,
+      x = activity,
       y = Mean,
-      group = condition
+      group = style
     ),
     linewidth = 1.5
   ) +
-  facet_wrap(~interview, labeller = label_both)
-
-# Grid displaying information disclosure over the three interviews for each mock crime stage. 
-
-plot_3 <- ggplot(
-  my_df,
-  aes(
-    x=interview,
-    y=detail,
-    group=id,
-    color=condition
-  )
-) + 
-  geom_line(
-    position = position_jitter(),
-    color = "black"
-  ) +
-  geom_line(
-    data = info_desc,
-    aes(
-      x = interview,
-      y = Mean,
-      group = condition
-    ),
-    linewidth = 1.5
-  ) +
-  scale_x_continuous(breaks = c(0,1,2)) +
-  facet_wrap(~stage, labeller = label_both)
+  labs(
+    y = "Information disclosure",
+    x = "Activity",
+    color = "Condition"
+  )+  
+  facet_wrap(~interview, labeller = labeller(interview = interview.labs)) +
+  scale_x_continuous(
+    labels = c("1", "2", "3","4","5"),
+    breaks = 0:4) +
+  ylim(0, 5
+  ) 
 
 
 # Information disclosure models ------------------------------------------------
@@ -111,10 +163,10 @@ plot_3 <- ggplot(
 
 icc_model <- lmer(detail
             ~ 1 
-            + (1 |MC/id)
+            + (1 |mc/id)
             + (1 |interviewer) #Have not simulated variances for interviewer yet
             + (1 |interview) 
-            + (1 |stage),
+            + (1 |activity),
             data=my_df,
             REML=TRUE)
 
@@ -129,10 +181,9 @@ info_no_rslope <- lmer(detail
                     + interview 
                     + start_slope 
                     + end_slope 
-                    + condition 
-                    + (1 | MC/id)
-                    + (1 |interviewer)
-                    + (1 | stage),
+                    + style 
+                    + (1 | id)
+                    + (1 |interviewer),
                     data=my_df,
                     REML=FALSE)
 
@@ -145,10 +196,9 @@ info_simple <- lmer(detail
             + interview 
             + start_slope 
             + end_slope 
-            + condition 
-            + (1 + start_slope + end_slope + interview | MC/id)
-            + (1 |interviewer)
-            + (1 | stage),
+            + style 
+            + (1 + start_slope + end_slope + interview | id)
+            + (1 |interviewer),
             data=my_df,
             REML=FALSE)
 
@@ -160,26 +210,26 @@ anova(info_no_rslope,info_simple, refit=FALSE)
 
 #Interaction effects (2-way)
 
-info_2_way <- lmer(detail 
-            ~ 1 
-            + interview 
-            + start_slope 
-            + end_slope 
-            + condition 
-            + interview*start_slope
-            + interview*end_slope
-            + interview*condition
-            + start_slope*condition
-            + end_slope*condition
-            + (1 + start_slope + end_slope + interview | MC/id)
-            + (1 |interviewer)
-            + (1 |stage),
-            data=my_df,
-            REML=FALSE)
+info_2_way_slopes <- lmer(detail 
+                   ~ 1 
+                   + interview 
+                   + start_slope 
+                   + end_slope 
+                   + style 
+                   + interview*start_slope
+                   + interview*end_slope
+                   + interview*style
+                   + start_slope*style
+                   + end_slope*style
+                   + (1 + start_slope + end_slope + interview | id)
+                   + (1 |interviewer),
+                   data=my_df,
+                   REML=FALSE)
 
-summary(info_2_way)
+summary(info_2_way_slopes)
 
-anova(info_simple,info_2_way, refit=FALSE)
+
+anova(info_simple,info_2_way_slopes, refit=FALSE)
 
 #Interaction effects (3-way)
 
@@ -188,23 +238,22 @@ info_3_way <- lmer(detail
             + interview 
             + start_slope 
             + end_slope 
-            + condition 
+            + style 
             + interview*start_slope
             + interview*end_slope
-            + interview*condition
-            + start_slope*condition
-            + end_slope*condition
-            + interview*condition*start_slope 
-            + interview*condition*end_slope   
-            + (1 + start_slope + end_slope + interview | MC/id)
-            + (1 |interviewer)
-            + (1 | stage),
+            + interview*style
+            + start_slope*style
+            + end_slope*style
+            + interview*style*start_slope 
+            + interview*style*end_slope   
+            + (1 + start_slope + end_slope + interview |id)
+            + (1 |interviewer),
             data=my_df,
             REML=FALSE)
 
 summary(info_3_way)
 
-anova(info_2_way, info_3_way, refit=FALSE)
+anova(info_2_way_slopes, info_3_way, refit=FALSE)
 
 # Self-assessment of performance -----------------------------------------------
 
@@ -212,9 +261,9 @@ anova(info_2_way, info_3_way, refit=FALSE)
 
 SA_icc_model <- lmer(self_assessment 
                   ~ 1 
-                  + (1 |MC/id)
+                  + (1 |mc/id)
                   + (1 |interviewer) #Have not simulated variances for interviewer yet
-                  + (1 |stage)
+                  + (1 |activity)
                   + (1 |interview),
                   data=my_df,
                   REML=TRUE)
@@ -228,8 +277,9 @@ performance::icc(SA_icc_model, by_group = TRUE)
 self_simple <- lmer(self_assessment 
                     ~ 1 
                     + interview 
-                    + condition 
-                    + (1 + interview | MC/id),
+                    + style 
+                    + (1 + interview | id)
+                    + (1|interviewer),
                     data=my_df,
                     REML=FALSE)
 
@@ -240,9 +290,10 @@ summary(self_simple)
 self_interaction <- lmer(self_assessment  
                    ~ 1 
                    + interview 
-                   + condition 
-                   + interview*condition
-                   + (1 + interview | MC/id),
+                   + style 
+                   + interview*style
+                   + (1 + interview | id)
+                   + (1|interviewer),
                    data=my_df,
                    REML=FALSE)
 
@@ -256,11 +307,11 @@ anova(self_simple, self_interaction, refit=FALSE)
 
 # ICC Model - Unconditional mean model
 
-QIW_icc_model <- lmer(qual_interview 
+QIW_icc_model <- lmer(interview_qual 
                      ~ 1 
-                     + (1 |MC/id)
-                     + (1 |interviewer) #Have not simulated variances for interviewer yet
-                     + (1 |stage)
+                     + (1 |mc/id)
+                     + (1 |interviewer) 
+                     + (1 |activity)
                      + (1 |interview),
                      data=my_df,
                      REML=TRUE)
@@ -271,12 +322,12 @@ performance::icc(QIW_icc_model, by_group = TRUE)
 
 ## Main effects
 
-qual_interview_simple <- lmer(qual_interview 
+qual_interview_simple <- lmer(interview_qual
                     ~ 1 
                     + interview
-                    + interview_sq
-                    + condition 
-                    + (1 + interview  + interview_sq| MC/id),
+                    + style 
+                    + (1 + interview| id)
+                    + (1|interviewer),
                     data=my_df,
                     REML=FALSE)
 
@@ -284,12 +335,13 @@ summary(qual_interview_simple)
 
 ## Interaction effect
 
-qual_interview_interaction <- lmer(qual_interview 
+qual_interview_interaction <- lmer(interview_qual
                          ~ 1 
                          + interview 
-                         + condition 
-                         + interview*condition
-                         + (1 + interview | MC/id),
+                         + style 
+                         + interview*style
+                         + (1 + interview | id)
+                         + (1|interviewer),
                          data=my_df,
                          REML=FALSE)
 
@@ -301,11 +353,10 @@ anova(qual_interview_simple, qual_interview_interaction, refit=FALSE)
 
 # ICC Model - Unconditional mean model
 
-QIR_icc_model <- lmer(qual_interviewer 
+QIR_icc_model <- lmer(interviewer_qual 
                       ~ 1 
-                      + (1 |MC/id)
+                      + (1 |id)
                       + (1 |interviewer) #Have not simulated variances for interviewer yet
-                      + (1 |stage)
                       + (1 |interview),
                       data=my_df,
                       REML=TRUE)
@@ -316,11 +367,12 @@ performance::icc(QIR_icc_model, by_group = TRUE)
 
 ## Main effects
 
-qual_interviewer_simple <- lmer(qual_interviewer 
+qual_interviewer_simple <- lmer(interviewer_qual  
                               ~ 1 
                               + interview 
-                              + condition 
-                              + (1 + interview | MC/id),
+                              + style 
+                              + (1 + interview |id)
+                              + (1|interviewer),
                               data=my_df,
                               REML=FALSE)
 
@@ -328,12 +380,13 @@ summary(qual_interviewer_simple)
 
 ## Interaction effects
 
-qual_interviewer_interaction <- lmer(qual_interviewer 
+qual_interviewer_interaction <- lmer(interviewer_qual
                                    ~ 1 
                                    + interview 
-                                   + condition 
-                                   + interview*condition
-                                   + (1 + interview | MC/id),
+                                   + style 
+                                   + interview*style
+                                   + (1 + interview |id)
+                                   + (1|interviewer),
                                    data=my_df,
                                    REML=FALSE)
 
@@ -350,9 +403,9 @@ anova(qual_interviewer_simple, qual_interviewer_interaction, refit=FALSE)
 
 expl_model_1 <- lmer(detail
                      ~ interview
-                     + condition
+                     + style
                      + self_assessment
-                     + (1 + interview | MC/id) 
+                     + (1 + interview | id) 
                      + (1 | stage),
                      data=my_df,
                      REML=FALSE)
@@ -364,11 +417,11 @@ summary(expl_model_1)
 
 expl_model_2 <- lmer(detail
                      ~ interview
-                     + condition
+                     + style
                      + self_assessment
-                     + self_assessment*condition
+                     + self_assessment*style
                      + self_assessment*interview
-                     + (1 + interview | MC/id) 
+                     + (1 + interview | id) 
                      + (1 | stage),
                      data = my_df,
                      REML = FALSE
@@ -382,11 +435,11 @@ comp_expl_model_anova <- anova(expl_model_1, expl_model_2)
 
 expl_model_3 <- lmer(detail
                      ~ interview
-                     + condition
+                     + style
                      + self_assessment
-                     + self_assessment*condition
+                     + self_assessment*style
                      + self_assessment*interview
-                     + self_assessment*interview*condition
+                     + self_assessment*interview*style
                      + (1 + interview | MC/id) 
                      + (1|stage),
                      data = my_df,

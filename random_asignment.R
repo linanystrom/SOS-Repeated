@@ -35,6 +35,7 @@ df$style <- complete_ra(N = sample, conditions = c("direct", "sos"))
 
 overall_count <- count(df, mc, style)
 
+participant_61 <- sample(mock_crimes, 1)
 
 # Export permutations ----------------------------------------------------------
 
