@@ -5,6 +5,7 @@
 ################################################################################
 
 library(emmeans)
+library(compute.es)
 
 take_the_best <- read_xlsx("data/coding_solved.xlsx") 
 
@@ -52,6 +53,48 @@ ttb_desc <- take_the_best %>%
     Lower = Mean - (1.96*SE)
   )
 
+ttb_nc_desc <- take_the_best %>% filter(critical == 0) %>% 
+  group_by(style) %>% 
+  summarise(
+    Mean = mean(detail, na.rm = TRUE),
+    SD = sd(detail, na.rm = TRUE),
+    Median = median(detail, na.rm = TRUE),
+    SE = SD/sqrt(n()),
+    Upper = Mean + (1.96*SE),
+    Lower = Mean - (1.96*SE),
+    n = n()
+  )
+
+sum_d_ncrit <- mes(
+  m.1  = ttb_nc_desc[ttb_nc_desc$style == "sos", ]$Mean,
+  m.2  = ttb_nc_desc[ttb_nc_desc$style == "direct", ]$Mean,
+  sd.1 = ttb_nc_desc[ttb_nc_desc$style == "sos", ]$SD,
+  sd.2 = ttb_nc_desc[ttb_nc_desc$style == "direct", ]$SD,
+  n.1  = ttb_nc_desc[ttb_nc_desc$style == "sos", ]$n,
+  n.2  = ttb_nc_desc[ttb_nc_desc$style == "direct", ]$n
+)
+
+ttb_c_desc <- take_the_best %>% filter(critical == 1) %>% 
+  group_by(style) %>% 
+  summarise(
+    Mean = mean(detail, na.rm = TRUE),
+    SD = sd(detail, na.rm = TRUE),
+    Median = median(detail, na.rm = TRUE),
+    SE = SD/sqrt(n()),
+    Upper = Mean + (1.96*SE),
+    Lower = Mean - (1.96*SE),
+    n = n()
+  )
+
+sum_d_ncrit <- mes(
+  m.1  = ttb_c_desc[ttb_c_desc$style == "sos", ]$Mean,
+  m.2  = ttb_c_desc[ttb_c_desc$style == "direct", ]$Mean,
+  sd.1 = ttb_c_desc[ttb_c_desc$style == "sos", ]$SD,
+  sd.2 = ttb_c_desc[ttb_c_desc$style == "direct", ]$SD,
+  n.1  = ttb_c_desc[ttb_c_desc$style == "sos", ]$n,
+  n.2  = ttb_c_desc[ttb_c_desc$style == "direct", ]$n
+)
+
 # TTB analysis -----------------------------------------------------------------
 
 # Simple
@@ -87,3 +130,4 @@ ttb_emm <- emmeans(ttb_int, specs = ~ style + critical)
 
 pairs(ttb_emm)
 
+eff_size(ttb_emm, sigma = sigma(ttb_int), edf = 222)

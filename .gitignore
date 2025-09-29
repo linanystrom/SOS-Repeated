@@ -5,6 +5,6 @@
 .rda
 preregistration.Rmd
 .pdf
-*.csv
-*.xlsx
+.csv
+.xlsx
 *.pdf

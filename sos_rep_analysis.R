@@ -17,6 +17,14 @@ my_df <- read_csv("data/sos_rep_long.csv") #Load data here
 
 plot_df <- my_df
 
+plot_df <- plot_df %>% 
+  mutate(
+    style = case_when(
+      style == "direct" ~ "Direct",
+      style == "sos" ~ "SoS"
+    )
+  )
+
 
 ## Factor training & details (critical, noncritical)
 
@@ -119,20 +127,19 @@ plot_1 <- ggplot(
 interview.labs <- c("Interview 1", "Interview 2", "Interview 3")
 names(interview.labs) <- c("0", "1", "2")
 
-plot_df$style <- factor(plot_df$style,
-                               levels = c("direct", "sos"),
-                               labels = c("Direct","SoS"))
 
 plot_2 <- ggplot(
   plot_df,
   aes(
     x=activity,
     y=detail,
-    color=style,
-    group = id)
+    color=style)
 ) + 
   geom_line(
+    aes(
+      group = id),
     position = position_jitter(),
+    alpha = .2,
     color = "grey"
   ) +
   geom_line(
@@ -144,6 +151,20 @@ plot_2 <- ggplot(
     ),
     linewidth = 1.5
   ) +
+  scale_color_manual(values = c("#82A7A6",
+                                "#B22A6B")) +
+  geom_errorbar(
+    data = info_desc,
+    position = position_dodge(width = 0.2),
+    aes(
+      x = activity,
+      ymax = Upper,
+      ymin = Lower,
+      group = style,
+      color = factor(style)),
+    inherit.aes = FALSE,
+    width = .25
+  ) +
   labs(
     y = "Information disclosure",
     x = "Activity",
@@ -154,7 +175,8 @@ plot_2 <- ggplot(
     labels = c("1", "2", "3","4","5"),
     breaks = 0:4) +
   ylim(0, 5
-  ) 
+  ) +
+  theme_classic()
 
 
 # Information disclosure models ------------------------------------------------
@@ -164,7 +186,7 @@ plot_2 <- ggplot(
 icc_model <- lmer(detail
             ~ 1 
             + (1 |mc/id)
-            + (1 |interviewer) #Have not simulated variances for interviewer yet
+            + (1 |interviewer) 
             + (1 |interview) 
             + (1 |activity),
             data=my_df,
